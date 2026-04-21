@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Crawl Google Maps</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        input,
+        button {
+            padding: 8px;
+            margin: 5px;
+        }
+
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background: #333;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>🚀 Crawl Google Maps</h2>
+
+    <input id="keyword" placeholder="Từ khóa" />
+    <input id="location" placeholder="Địa điểm" />
+
+    <button onclick="start()">Start Crawl</button>
+    <button onclick="download()">⬇ Export Excel</button>
+
+    <h3 id="status"></h3>
+
+    <table id="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Phone</th>
+                <th>Website</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let globalData = [];
+        let evtSource;
+
+        function start() {
+            const keyword = document.getElementById("keyword").value;
+            const location = document.getElementById("location").value;
+
+            const tbody = document.querySelector("#table tbody");
+            tbody.innerHTML = "";
+
+            globalData = [];
+
+            document.getElementById("status").innerText = "⏳ Đang crawl...";
+
+            if (evtSource) evtSource.close();
+
+            evtSource = new EventSource(
+                `/crawl-stream?keyword=${encodeURIComponent(keyword)}&location=${encodeURIComponent(location)}`
+            );
+
+            let count = 0;
+
+            evtSource.onmessage = function (event) {
+                if (event.data === "DONE") {
+                    document.getElementById("status").innerText = "✅ Hoàn thành!";
+                    evtSource.close();
+                    return;
+                }
+
+                if (event.data === "ERROR") {
+                    document.getElementById("status").innerText = "❌ Lỗi!";
+                    evtSource.close();
+                    return;
+                }
+
+                const item = JSON.parse(event.data);
+                globalData.push(item);
+
+                count++;
+                document.getElementById("status").innerText = `Đã crawl: ${count}`;
+
+                const row = `
+            <tr>
+                <td>${item.name}</td>
+                <td>${item.address}</td>
+                <td>${item.phone}</td>
+                <td><a href="${item.website}" target="_blank">Link</a></td>
+            </tr>
+        `;
+
+                document.querySelector("#table tbody").innerHTML += row;
+
+                window.scrollTo(0, document.body.scrollHeight);
+            };
+        }
+
+        function download() {
+            fetch("/export", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(globalData)
+            })
+                .then(res => res.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "maps-data.xlsx";
+                    a.click();
+                });
+        }
+    </script>
+
+</body>
+
+</html>
